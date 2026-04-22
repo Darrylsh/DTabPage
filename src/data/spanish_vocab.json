@@ -1,0 +1,74 @@
+{
+  "1": [
+    { "text": "Hola", "pronunciation": "o-la", "english": "Hello" },
+    { "text": "Adiós", "pronunciation": "a-dyos", "english": "Goodbye" },
+    { "text": "Por favor", "pronunciation": "por fa-bor", "english": "Please" },
+    { "text": "Gracias", "pronunciation": "gra-syas", "english": "Thank you" },
+    { "text": "Sí", "pronunciation": "si", "english": "Yes" },
+    { "text": "No", "pronunciation": "no", "english": "No" },
+    { "text": "Amigo", "pronunciation": "a-mi-go", "english": "Friend" },
+    { "text": "Agua", "pronunciation": "a-gwa", "english": "Water" },
+    { "text": "Comida", "pronunciation": "ko-mi-da", "english": "Food" },
+    { "text": "Casa", "pronunciation": "ka-sa", "english": "House" }
+  ],
+  "2": [
+    { "text": "Trabajar", "pronunciation": "tra-ba-har", "english": "To work" },
+    { "text": "Escuela", "pronunciation": "es-kwe-la", "english": "School" },
+    { "text": "Familia", "pronunciation": "fa-mi-lya", "english": "Family" },
+    { "text": "Mañana", "pronunciation": "ma-nya-na", "english": "Tomorrow / Morning" },
+    { "text": "Ayer", "pronunciation": "a-yer", "english": "Yesterday" },
+    { "text": "Hoy", "pronunciation": "oy", "english": "Today" },
+    { "text": "Siempre", "pronunciation": "syem-pre", "english": "Always" },
+    { "text": "Nunca", "pronunciation": "nun-ka", "english": "Never" },
+    { "text": "Libro", "pronunciation": "li-bro", "english": "Book" },
+    { "text": "Calle", "pronunciation": "ka-lye", "english": "Street" }
+  ],
+  "3": [
+    { "text": "Entender", "pronunciation": "en-ten-der", "english": "To understand" },
+    { "text": "Desarrollo", "pronunciation": "de-sa-ro-lyo", "english": "Development" },
+    { "text": "Gobierno", "pronunciation": "go-byer-no", "english": "Government" },
+    { "text": "Sociedad", "pronunciation": "so-sye-dad", "english": "Society" },
+    { "text": "Conocer", "pronunciation": "ko-no-ser", "english": "To know (a person/place)" },
+    { "text": "Pensar", "pronunciation": "pen-sar", "english": "To think" },
+    { "text": "Sentir", "pronunciation": "sen-tir", "english": "To feel" },
+    { "text": "Seguro", "pronunciation": "se-gu-ro", "english": "Sure / Safe" },
+    { "text": "Verdad", "pronunciation": "ber-dad", "english": "Truth" },
+    { "text": "Razón", "pronunciation": "ra-son", "english": "Reason" }
+  ],
+  "4": [
+    { "text": "Imprescindible", "pronunciation": "im-pre-sin-di-ble", "english": "Essential / Indispensable" },
+    { "text": "Inolvidable", "pronunciation": "i-nol-bi-da-ble", "english": "Unforgettable" },
+    { "text": "Conocimiento", "pronunciation": "ko-no-si-myen-to", "english": "Knowledge" },
+    { "text": "Aprovechar", "pronunciation": "a-pro-be-char", "english": "To take advantage of" },
+    { "text": "Reconocer", "pronunciation": "re-ko-no-ser", "english": "To recognize" },
+    { "text": "Desafío", "pronunciation": "de-sa-fi-o", "english": "Challenge" },
+    { "text": "Compromiso", "pronunciation": "kom-pro-mi-so", "english": "Commitment" },
+    { "text": "Equilibrio", "pronunciation": "e-ki-li-bryo", "english": "Balance" },
+    { "text": "Alcanzar", "pronunciation": "al-kan-sar", "english": "To reach / To achieve" },
+    { "text": "Disculpar", "pronunciation": "dis-kul-par", "english": "To apologize" }
+  ],
+  "5": [
+    { "text": "Efímero", "pronunciation": "e-fi-me-ro", "english": "Ephemeral" },
+    { "text": "Iridiscencia", "pronunciation": "i-ri-di-sen-sya", "english": "Iridescence" },
+    { "text": "Superfluo", "pronunciation": "su-per-flwo", "english": "Superfluous" },
+    { "text": "Paradigma", "pronunciation": "pa-ra-dig-ma", "english": "Paradigm" },
+    { "text": "Intrínseco", "pronunciation": "in-trin-se-ko", "english": "Intrinsic" },
+    { "text": "Pragmático", "pronunciation": "prag-ma-ti-ko", "english": "Pragmatic" },
+    { "text": "Metódico", "pronunciation": "me-to-di-ko", "english": "Methodical" },
+    { "text": "Vulnerable", "pronunciation": "bul-ne-ra-ble", "english": "Vulnerable" },
+    { "text": "Reivindicar", "pronunciation": "rey-bin-di-kar", "english": "To claim / To defend" },
+    { "text": "Ambiguo", "pronunciation": "am-bi-gwo", "english": "Ambiguous" }
+  ],
+  "6": [
+    { "text": "Inconmensurable", "pronunciation": "in-kon-men-su-ra-ble", "english": "Immeasurable" },
+    { "text": "Idiosincrasia", "pronunciation": "i-dyo-sin-kra-sya", "english": "Idiosyncrasy" },
+    { "text": "Quijotesco", "pronunciation": "ki-ho-tes-ko", "english": "Quixotic" },
+    { "text": "Pusilánime", "pronunciation": "pu-si-la-ni-me", "english": "Pusillanimous" },
+    { "text": "Inescrutable", "pronunciation": "i-nes-kru-ta-ble", "english": "Inscrutable" },
+    { "text": "Perseverancia", "pronunciation": "per-se-be-ran-sya", "english": "Perseverance" },
+    { "text": "Elocuencia", "pronunciation": "e-lo-kwen-sya", "english": "Eloquence" },
+    { "text": "Desentrañar", "pronunciation": "de-sen-tra-nyar", "english": "To unravel / To figure out" },
+    { "text": "Subrepticio", "pronunciation": "su-brep-ti-syo", "english": "Surreptitious" },
+    { "text": "Inefable", "pronunciation": "i-ne-fa-ble", "english": "Ineffable" }
+  ]
+}

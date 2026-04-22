@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Little D's New Tab Page",
+  "version": "1.0.0",
+  "description": "A beautiful, feature-rich new tab with top sites, news, weather, and Mandarin learning.",
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  },
+  "permissions": ["topSites", "storage"],
+  "icons": {
+    "16": "favicon-16x16.png",
+    "48": "android-chrome-192x192.png",
+    "128": "android-chrome-192x192.png"
+  }
+}
