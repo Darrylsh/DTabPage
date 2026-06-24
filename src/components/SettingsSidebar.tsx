@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Plus, Minus } from 'lucide-react';
+import { X, Plus, Minus, Sparkles, RefreshCw } from 'lucide-react';
 import type { Settings } from '../hooks/useSettings';
+import { usePersonalizedNews } from '../hooks/usePersonalizedNews';
 
 interface SettingsSidebarProps {
   open: boolean;
@@ -11,6 +12,12 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ open, onClose, settings, onUpdate }: SettingsSidebarProps) {
   const [newFeedUrl, setNewFeedUrl] = useState('');
+  const { interests, recommendedFeeds, loading, refreshProfiling } = usePersonalizedNews(settings.feedUrls);
+
+  const addFeedUrl = (url: string) => {
+    if (settings.feedUrls.includes(url)) return;
+    onUpdate({ feedUrls: [...settings.feedUrls, url] });
+  };
 
   const addFeed = () => {
     const url = newFeedUrl.trim();
@@ -136,6 +143,72 @@ export function SettingsSidebar({ open, onClose, settings, onUpdate }: SettingsS
               })}
               {settings.feedUrls.length === 0 && (
                 <p className="text-xs text-white/20 text-center py-2">No feeds added</p>
+              )}
+            </div>
+          </div>
+
+          {/* Personalized Recommendations */}
+          <div className="space-y-3 pt-4 border-t border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                <label className="text-xs font-semibold text-white/40 uppercase tracking-widest">
+                  Recommended For You
+                </label>
+              </div>
+              <button
+                onClick={refreshProfiling}
+                disabled={loading}
+                className="p-1 rounded-md text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors disabled:opacity-40"
+                title="Rescan interests"
+              >
+                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin text-blue-400' : ''}`} />
+              </button>
+            </div>
+
+            {/* Interest Tags */}
+            {interests.length > 0 && (
+              <div className="flex flex-wrap gap-1 ml-0.5">
+                {interests.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-300 font-medium"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Suggested Feeds */}
+            <div className="space-y-1.5">
+              {recommendedFeeds.map((feed) => (
+                <div
+                  key={feed.feedUrl}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group"
+                >
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="text-xs font-medium text-white/80 truncate">
+                      {feed.name}
+                    </span>
+                    <span className="text-[10px] text-white/30 truncate">
+                      {feed.domain} • {feed.category}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => addFeedUrl(feed.feedUrl)}
+                    className="p-1 rounded-md bg-blue-500/10 text-blue-300 hover:bg-blue-500/30 transition-colors flex-shrink-0"
+                    title={`Subscribe to ${feed.name}`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {!loading && recommendedFeeds.length === 0 && (
+                <p className="text-[11px] text-white/30 text-center py-2 italic">
+                  No suggestions. Try browsing more news sites!
+                </p>
               )}
             </div>
           </div>

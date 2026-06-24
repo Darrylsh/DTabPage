@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRssFeed } from '../hooks/useRssFeed';
-import { useReadArticles } from '../hooks/useReadArticles';
+import { useReadArticles, getCleanUrl } from '../hooks/useReadArticles';
+import { usePersonalizedNews } from '../hooks/usePersonalizedNews';
+import { CATEGORY_KEYWORDS } from '../data/curatedFeeds';
 import { NewsCard } from './NewsCard';
 import { Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,11 +29,22 @@ function SkeletonCard() {
 export function NewsGrid({ feedUrls }: NewsGridProps) {
   const { items, loading, error } = useRssFeed(feedUrls);
   const { readUrls, markAsRead } = useReadArticles();
+  const { interests } = usePersonalizedNews(feedUrls);
   const [showRead, setShowRead] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const filteredItems = items.filter((item) => showRead || !readUrls.has(item.link));
+  const checkIsRecommended = useCallback((title: string, desc: string) => {
+    if (!interests || interests.length === 0) return false;
+    const textToSearch = `${title} ${desc || ''}`.toLowerCase();
+    return interests.some(interest => {
+      const keywords = CATEGORY_KEYWORDS[interest];
+      if (!keywords) return false;
+      return keywords.some(kw => textToSearch.includes(kw.toLowerCase()));
+    });
+  }, [interests]);
+
+  const filteredItems = items.filter((item) => showRead || !readUrls.has(getCleanUrl(item.link)));
 
   // Reset visible count when items change (new feeds loaded)
   useEffect(() => {
@@ -104,7 +117,8 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
                 >
                   <NewsCard 
                     item={item} 
-                    isRead={readUrls.has(item.link)} 
+                    isRead={readUrls.has(getCleanUrl(item.link))} 
+                    isRecommended={checkIsRecommended(item.title, item.description)}
                     onClick={() => markAsRead(item.link)} 
                     onDismiss={() => markAsRead(item.link)}
                   />

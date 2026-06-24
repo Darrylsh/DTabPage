@@ -1,5 +1,5 @@
 import type { FeedItem } from '../hooks/useRssFeed';
-import { X } from 'lucide-react';
+import { X, Sparkles } from 'lucide-react';
 
 function timeAgo(dateStr: string): string {
   const now = Date.now();
@@ -16,11 +16,12 @@ function timeAgo(dateStr: string): string {
 interface NewsCardProps {
   item: FeedItem;
   isRead?: boolean;
+  isRecommended?: boolean;
   onClick?: () => void;
   onDismiss?: () => void;
 }
 
-export function NewsCard({ item, isRead, onClick, onDismiss }: NewsCardProps) {
+export function NewsCard({ item, isRead, isRecommended, onClick, onDismiss }: NewsCardProps) {
   const handleClick = (e: React.MouseEvent) => {
     if (onClick) {
       e.preventDefault();
@@ -44,7 +45,11 @@ export function NewsCard({ item, isRead, onClick, onDismiss }: NewsCardProps) {
       target="_blank"
       rel="noopener noreferrer"
       onClick={handleClick}
-      className={`group block rounded-xl overflow-hidden glass news-card-hover ${isRead ? 'opacity-50 grayscale-[50%]' : ''}`}
+      className={`
+        group block rounded-xl overflow-hidden glass news-card-hover transition-all duration-300
+        ${isRecommended ? 'border border-blue-500/30 hover:border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.1)] hover:shadow-[0_0_20px_rgba(59,130,246,0.25)]' : 'border border-transparent'}
+        ${isRead ? 'opacity-50 grayscale-[50%]' : ''}
+      `}
     >
       {/* Thumbnail */}
       <div className="relative h-40 bg-white/5 overflow-hidden">
@@ -62,9 +67,17 @@ export function NewsCard({ item, isRead, onClick, onDismiss }: NewsCardProps) {
             <span className="text-4xl opacity-20">📰</span>
           </div>
         )}
-        {/* Source badge */}
-        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] font-semibold text-white/80 uppercase tracking-wider">
-          {item.source}
+        {/* Badges container */}
+        <div className="absolute top-2 left-2 flex gap-1.5 z-10">
+          <div className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] font-semibold text-white/80 uppercase tracking-wider">
+            {item.source}
+          </div>
+          {isRecommended && (
+            <div className="px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-500/85 to-indigo-500/85 text-[9px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-sm">
+              <Sparkles className="w-2.5 h-2.5 text-blue-200" />
+              <span>For You</span>
+            </div>
+          )}
         </div>
         {/* Dismiss button */}
         <button
