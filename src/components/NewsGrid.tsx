@@ -4,7 +4,7 @@ import { useReadArticles, getCleanUrl } from '../hooks/useReadArticles';
 import { usePersonalizedNews } from '../hooks/usePersonalizedNews';
 import { CATEGORY_KEYWORDS } from '../data/curatedFeeds';
 import { NewsCard } from './NewsCard';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, RotateCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface NewsGridProps {
@@ -27,7 +27,7 @@ function SkeletonCard() {
 }
 
 export function NewsGrid({ feedUrls }: NewsGridProps) {
-  const { items, loading, error } = useRssFeed(feedUrls);
+  const { items, loading, isRefreshing, error, refresh } = useRssFeed(feedUrls);
   const { readUrls, markAsRead } = useReadArticles();
   const { interests } = usePersonalizedNews(feedUrls);
   const [showRead, setShowRead] = useState(false);
@@ -46,10 +46,11 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
 
   const filteredItems = items.filter((item) => showRead || !readUrls.has(getCleanUrl(item.link)));
 
-  // Reset visible count when items change (new feeds loaded)
+  // Reset visible count only when feed URLs are modified in settings
+  const feedUrlsKey = feedUrls.join(',');
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [items]);
+  }, [feedUrlsKey]);
 
   const loadMore = useCallback(() => {
     setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, filteredItems.length));
@@ -75,6 +76,7 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
 
   const visibleItems = filteredItems.slice(0, visibleCount);
   const hasMore = visibleCount < filteredItems.length;
+  const showSkeletons = loading && items.length === 0;
 
   return (
     <div className="w-full max-w-6xl mx-auto animate-fade-in">
@@ -82,17 +84,28 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
         <h2 className="text-sm font-semibold text-white/40 uppercase tracking-widest">
           Latest News
         </h2>
-        <button
-          onClick={() => setShowRead(!showRead)}
-          className="flex items-center gap-2 text-xs font-medium text-white/40 hover:text-white/80 transition-colors"
-          title={showRead ? "Hide read articles" : "Show read articles"}
-        >
-          {showRead ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          {showRead ? "Hide Read" : "Show Read"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => refresh()}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 text-xs font-medium text-white/40 hover:text-white/80 transition-colors disabled:opacity-40"
+            title="Refresh news"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+          </button>
+          <button
+            onClick={() => setShowRead(!showRead)}
+            className="flex items-center gap-2 text-xs font-medium text-white/40 hover:text-white/80 transition-colors"
+            title={showRead ? "Hide read articles" : "Show read articles"}
+          >
+            {showRead ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showRead ? "Hide Read" : "Show Read"}
+          </button>
+        </div>
       </div>
 
-      {error && (
+      {error && items.length === 0 && (
         <p className="text-sm text-red-400/70 mb-4">
           Could not load some feeds. Check your URLs in settings.
         </p>
@@ -100,7 +113,7 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
 
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AnimatePresence>
-          {loading
+          {showSkeletons
             ? Array.from({ length: 6 }).map((_, i) => (
                 <motion.div key={`skeleton-${i}`} layout exit={{ opacity: 0 }}>
                   <SkeletonCard />
@@ -110,10 +123,10 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
                 <motion.div
                   key={item.link}
                   layout
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  initial={{ opacity: 0, scale: 0.98, y: 8 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, filter: 'blur(4px)' }}
-                  transition={{ duration: 0.3, type: 'spring', bounce: 0.15 }}
+                  exit={{ opacity: 0, scale: 0.92, filter: 'blur(4px)' }}
+                  transition={{ duration: 0.25 }}
                 >
                   <NewsCard 
                     item={item} 
@@ -128,7 +141,7 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
       </motion.div>
 
       {/* Infinite scroll sentinel */}
-      {!loading && hasMore && (
+      {!showSkeletons && hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-8">
           <div className="flex gap-1.5">
             <div className="w-2 h-2 rounded-full bg-white/20 animate-pulse" />
@@ -138,7 +151,7 @@ export function NewsGrid({ feedUrls }: NewsGridProps) {
         </div>
       )}
 
-      {!loading && filteredItems.length === 0 && !error && (
+      {!showSkeletons && filteredItems.length === 0 && !error && (
         <p className="text-sm text-white/30 text-center py-8">
           {items.length === 0 ? "No articles found. Add RSS feed URLs in settings." : "No unread articles."}
         </p>

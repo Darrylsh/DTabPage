@@ -1,4 +1,10 @@
 import { useState, useEffect } from 'react';
+import {
+  getMainDomain,
+  getMainDomainUrl,
+  isRootUrl,
+  getSiteDisplayName,
+} from '../lib/domain';
 
 export interface TopSite {
   title: string;
@@ -6,71 +12,20 @@ export interface TopSite {
 }
 
 const DEFAULT_SITES: TopSite[] = [
-  { title: 'Google', url: 'https://www.google.com' },
-  { title: 'YouTube', url: 'https://www.youtube.com' },
+  { title: 'Google', url: 'https://google.com' },
+  { title: 'YouTube', url: 'https://youtube.com' },
   { title: 'GitHub', url: 'https://github.com' },
-  { title: 'Reddit', url: 'https://www.reddit.com' },
+  { title: 'Reddit', url: 'https://reddit.com' },
   { title: 'Twitter', url: 'https://twitter.com' },
   { title: 'Stack Overflow', url: 'https://stackoverflow.com' },
-  { title: 'Wikipedia', url: 'https://www.wikipedia.org' },
-  { title: 'Amazon', url: 'https://www.amazon.com' },
+  { title: 'Wikipedia', url: 'https://wikipedia.org' },
+  { title: 'Amazon', url: 'https://amazon.com' },
 ];
 
-function cleanUrl(urlStr: string): string {
-  try {
-    const url = new URL(urlStr);
-    // Only process http/https URLs
-    if (!url.protocol.startsWith('http')) return '';
-
-    // Strip search params and hash
-    url.search = '';
-    url.hash = '';
-
-    const pathSegments = url.pathname.split('/').filter(Boolean);
-
-    // Identify product pages, search queries, etc. to collapse them
-    const isProductOrSearch = pathSegments.some(seg =>
-      ['dp', 'gp', 'product', 'item', 'search', 'query', 'search_results'].includes(seg.toLowerCase())
-    );
-
-    if (isProductOrSearch || pathSegments.length > 2) {
-      // If it's a deep page but has a valid non-product first segment (e.g. org/username on GitHub/Twitter)
-      // collapse to origin + first segment. Otherwise collapse to origin.
-      if (pathSegments.length > 0 && !['dp', 'gp', 'product', 'item', 'search'].includes(pathSegments[0].toLowerCase())) {
-        return `${url.origin}/${pathSegments[0]}`;
-      }
-      return url.origin;
-    }
-
-    let cleaned = url.origin + url.pathname;
-    if (cleaned.endsWith('/')) {
-      cleaned = cleaned.slice(0, -1);
-    }
-    return cleaned;
-  } catch {
-    return '';
-  }
-}
-
-function cleanTitle(title: string, url: string): string {
-  if (!title) {
-    try {
-      return new URL(url).hostname.replace('www.', '');
-    } catch {
-      return url;
-    }
-  }
-  return title
-    .replace(/\s*-\s*Google Search\s*$/i, '')
-    .replace(/\s*-\s*Search\s*$/i, '')
-    .replace(/\s*\|\s*GitHub\s*$/i, '')
-    .replace(/\s*-\s*YouTube\s*$/i, '')
-    .replace(/\s*:\s*Online Shopping[^]*$/i, '')
-    .trim();
-}
-
 interface GroupedSite {
+  domain: string;
   title: string;
+  hasRootTitle: boolean;
   url: string;
   visitCount: number;
   maxIndividualVisitCount: number;
@@ -88,7 +43,7 @@ export function useTopSites(max = 24) {
         {
           text: '',
           startTime: oneMonthAgo,
-          maxResults: 2000,
+          maxResults: 3000,
         },
         (historyItems) => {
           if (historyItems && historyItems.length > 0) {
@@ -97,34 +52,54 @@ export function useTopSites(max = 24) {
             for (const item of historyItems) {
               if (!item.url) continue;
 
-              const cleaned = cleanUrl(item.url);
-              if (!cleaned) continue;
+              // Only process http/https URLs
+              if (!item.url.startsWith('http://') && !item.url.startsWith('https://')) {
+                continue;
+              }
+
+              const domain = getMainDomain(item.url);
+              if (!domain) continue;
+
+              const mainUrl = getMainDomainUrl(item.url);
+              if (!mainUrl) continue;
 
               const visitCount = item.visitCount || 1;
-              const existing = grouped.get(cleaned);
+              const isRoot = isRootUrl(item.url);
+              const existing = grouped.get(domain);
 
               if (existing) {
                 existing.visitCount += visitCount;
-                if (item.title && (!existing.title || (item.visitCount || 0) > existing.maxIndividualVisitCount)) {
+
+                // Prioritize root-page titles (e.g. "GitHub" over deep page names)
+                if (isRoot && item.title && !existing.hasRootTitle) {
                   existing.title = item.title;
-                  existing.maxIndividualVisitCount = item.visitCount || 0;
+                  existing.hasRootTitle = true;
+                } else if (
+                  !existing.hasRootTitle &&
+                  item.title &&
+                  (!existing.title || visitCount > existing.maxIndividualVisitCount)
+                ) {
+                  existing.title = item.title;
+                  existing.maxIndividualVisitCount = visitCount;
                 }
               } else {
-                grouped.set(cleaned, {
+                grouped.set(domain, {
+                  domain,
                   title: item.title || '',
-                  url: cleaned,
+                  hasRootTitle: isRoot && Boolean(item.title),
+                  url: mainUrl,
                   visitCount,
-                  maxIndividualVisitCount: item.visitCount || 0,
+                  maxIndividualVisitCount: visitCount,
                 });
               }
             }
 
-            // Convert map to array, sort by total visitCount descending, and clean titles
+            // Convert map to array, sort by total visitCount descending, and derive site names
             const sortedSites = Array.from(grouped.values())
               .sort((a, b) => b.visitCount - a.visitCount)
               .slice(0, max)
               .map(site => ({
-                title: cleanTitle(site.title, site.url),
+                title: getSiteDisplayName(site.domain, site.title),
                 url: site.url,
               }));
 
@@ -144,7 +119,29 @@ export function useTopSites(max = 24) {
       if (typeof chrome !== 'undefined' && chrome.topSites) {
         chrome.topSites.get((results) => {
           if (results && results.length > 0) {
-            setSites(results.slice(0, max));
+            const seenDomains = new Set<string>();
+            const collapsed: TopSite[] = [];
+
+            for (const item of results) {
+              if (!item.url) continue;
+              if (!item.url.startsWith('http://') && !item.url.startsWith('https://')) continue;
+
+              const domain = getMainDomain(item.url);
+              if (!domain || seenDomains.has(domain)) continue;
+              seenDomains.add(domain);
+
+              const mainUrl = getMainDomainUrl(item.url);
+              if (!mainUrl) continue;
+
+              collapsed.push({
+                title: getSiteDisplayName(domain, item.title),
+                url: mainUrl,
+              });
+
+              if (collapsed.length >= max) break;
+            }
+
+            setSites(collapsed.length > 0 ? collapsed : DEFAULT_SITES);
           } else {
             setSites(DEFAULT_SITES);
           }
@@ -157,3 +154,4 @@ export function useTopSites(max = 24) {
 
   return sites;
 }
+

@@ -1,74 +1,179 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  type FeedItem,
+  cleanHtmlText,
+  parseRssXml,
+  fetchFeedXml,
+} from '../lib/rssParser';
 
-export interface FeedItem {
-  title: string;
-  link: string;
-  description: string;
-  thumbnail: string;
-  pubDate: string;
-  source: string;
+export type { FeedItem };
+export { cleanHtmlText };
+
+const STORAGE_CACHE_KEY = 'horizon_cached_news_items';
+const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
+function parseDateToTime(dateStr: string): number {
+  if (!dateStr) return 0;
+  const time = new Date(dateStr).getTime();
+  return isNaN(time) ? 0 : time;
 }
 
-function extractSource(url: string): string {
+function loadInitialFeedCache(): FeedItem[] {
   try {
-    const host = new URL(url).hostname.replace('www.', '').replace('rss.', '');
-    return host.split('.')[0].toUpperCase();
-  } catch {
-    return 'NEWS';
-  }
+    const cached = localStorage.getItem(STORAGE_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch { /* ignore */ }
+  return [];
 }
 
-function stripHtml(html: string): string {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return tmp.textContent || tmp.innerText || '';
+function mergeFeedItems(existing: FeedItem[], incoming: FeedItem[]): FeedItem[] {
+  if (!incoming.length) return existing;
+  if (!existing.length) return incoming;
+
+  const itemMap = new Map<string, FeedItem>();
+
+  // Add existing items first
+  for (const item of existing) {
+    if (item.link) {
+      itemMap.set(item.link, item);
+    }
+  }
+
+  // Add or update with incoming items
+  for (const item of incoming) {
+    if (item.link) {
+      itemMap.set(item.link, item);
+    }
+  }
+
+  return Array.from(itemMap.values())
+    .sort((a, b) => parseDateToTime(b.pubDate) - parseDateToTime(a.pubDate))
+    .slice(0, 100);
+}
+
+function saveFeedCache(items: FeedItem[]) {
+  try {
+    const slice = items.slice(0, 100);
+    localStorage.setItem(STORAGE_CACHE_KEY, JSON.stringify(slice));
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.set({ [STORAGE_CACHE_KEY]: slice });
+    }
+  } catch { /* ignore */ }
 }
 
 export function useRssFeed(feedUrls: string[]) {
-  const [items, setItems] = useState<FeedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<FeedItem[]>(loadInitialFeedCache);
+  // Only show initial skeleton loading if we have NO cached items at all
+  const [loading, setLoading] = useState<boolean>(() => loadInitialFeedCache().length === 0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshCounterRef = useRef(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const refresh = useCallback(() => {
+    refreshCounterRef.current += 1;
+    setRefreshTrigger(refreshCounterRef.current);
+  }, []);
+
+  // Also check chrome.storage.local on mount for any fresher cross-tab cache
+  useEffect(() => {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get([STORAGE_CACHE_KEY], (res) => {
+        const stored = res[STORAGE_CACHE_KEY];
+        if (Array.isArray(stored) && stored.length > 0) {
+          setItems((prev) => {
+            if (prev.length === 0) return stored;
+            return mergeFeedItems(prev, stored);
+          });
+          setLoading(false);
+        }
+      });
+    }
+  }, []);
+
+  const feedUrlsKey = feedUrls.filter(Boolean).join(',');
 
   useEffect(() => {
-    if (!feedUrls.length) return;
+    const urls = feedUrlsKey ? feedUrlsKey.split(',') : [];
+    if (!urls.length) {
+      return;
+    }
 
-    setLoading(true);
-    setError(null);
+    let isMounted = true;
+    Promise.resolve().then(() => {
+      if (isMounted) setIsRefreshing(true);
+    });
 
     const fetchFeed = async (url: string): Promise<FeedItem[]> => {
       try {
-        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`;
-        const res = await fetch(apiUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-
-        if (data.status !== 'ok') throw new Error(data.message || 'Feed error');
-
-        const source = extractSource(url);
-        return (data.items || []).map((item: any) => ({
-          title: item.title || '',
-          link: item.link || '',
-          description: stripHtml(item.description || '').slice(0, 200),
-          thumbnail: item.thumbnail || item.enclosure?.link || '',
-          pubDate: item.pubDate || '',
-          source,
-        }));
+        const xmlText = await fetchFeedXml(url);
+        return parseRssXml(xmlText, url);
       } catch (err) {
-        console.warn(`Failed to fetch feed: ${url}`, err);
+        console.warn(`Failed to fetch RSS feed: ${url}`, err);
         return [];
       }
     };
 
-    Promise.all(feedUrls.filter(Boolean).map(fetchFeed))
-      .then((results) => {
-        const merged = results
-          .flat()
-          .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-        setItems(merged);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [feedUrls.join(',')]);
+    // Fetch all feeds concurrently and merge each progressively as it arrives
+    let successCount = 0;
+    const fetchPromises = urls.map(async (url) => {
+      const feedItems = await fetchFeed(url);
+      if (!isMounted || !feedItems.length) return;
 
-  return { items, loading, error };
+      successCount++;
+      setItems((prev) => {
+        const merged = mergeFeedItems(prev, feedItems);
+        saveFeedCache(merged);
+        return merged;
+      });
+      setLoading(false);
+    });
+
+    Promise.all(fetchPromises)
+      .then(() => {
+        if (!isMounted) return;
+        if (successCount === 0) {
+          setItems((prev) => {
+            if (prev.length === 0) {
+              setError('Could not fetch news articles from the configured feeds.');
+            }
+            return prev;
+          });
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setItems((prev) => {
+            if (prev.length === 0) setError(err.message);
+            return prev;
+          });
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoading(false);
+          setIsRefreshing(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [feedUrlsKey, refreshTrigger]);
+
+  // Auto-refresh periodically if the tab is kept open
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refresh();
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [refresh]);
+
+  return { items, loading, isRefreshing, error, refresh };
 }

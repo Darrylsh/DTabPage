@@ -7,6 +7,7 @@
     "newtab": "index.html"
   },
   "permissions": ["topSites", "storage", "history"],
+  "host_permissions": ["<all_urls>"],
   "icons": {
     "16": "favicon-16x16.png",
     "48": "android-chrome-192x192.png",

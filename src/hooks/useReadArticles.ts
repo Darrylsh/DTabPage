@@ -1,12 +1,38 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const STORAGE_KEY = 'horizon_read_articles';
+const MAX_READ_ARTICLES = 1000;
 
 export function getCleanUrl(urlStr: string): string {
   try {
     const url = new URL(urlStr);
-    // Remove query parameters and hashes for a canonical URL key
-    return url.origin + url.pathname;
+    // Remove marketing/tracking query parameters while preserving content IDs
+    const trackingParams = [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'src',
+      'ref',
+      'fbclid',
+      'gclid',
+      'mc_cid',
+      'mc_eid',
+    ];
+    trackingParams.forEach((param) => url.searchParams.delete(param));
+    url.hash = '';
+
+    // If query parameters are now empty, return origin + pathname
+    if (url.searchParams.toString() === '') {
+      let clean = url.origin + url.pathname;
+      if (clean.endsWith('/') && url.pathname !== '/') {
+        clean = clean.slice(0, -1);
+      }
+      return clean;
+    }
+
+    return url.toString();
   } catch {
     return urlStr;
   }
@@ -18,8 +44,24 @@ function getChromeStorage() {
     : null;
 }
 
+function loadInitialReadUrls(): Set<string> {
+  const storage = getChromeStorage();
+  if (storage) return new Set();
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed);
+      }
+    }
+  } catch { /* ignore */ }
+  return new Set();
+}
+
 export function useReadArticles() {
-  const [readUrls, setReadUrls] = useState<Set<string>>(new Set());
+  const [readUrls, setReadUrls] = useState<Set<string>>(loadInitialReadUrls);
 
   useEffect(() => {
     const storage = getChromeStorage();
@@ -36,7 +78,7 @@ export function useReadArticles() {
               const parsed = JSON.parse(saved);
               if (Array.isArray(parsed) && parsed.length > 0) {
                 const cleaned = parsed.map(getCleanUrl);
-                storage.set({ [STORAGE_KEY]: cleaned });
+                storage.set({ [STORAGE_KEY]: cleaned.slice(-MAX_READ_ARTICLES) });
                 setReadUrls(new Set(cleaned));
                 localStorage.removeItem(STORAGE_KEY);
               }
@@ -48,24 +90,14 @@ export function useReadArticles() {
       });
 
       // Listen for changes from other tabs/background contexts
-      const handleChromeStorageChange = (changes: Record<string, any>, areaName: string) => {
+      const handleChromeStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
         if (areaName === 'local' && changes[STORAGE_KEY]) {
-          setReadUrls(new Set(changes[STORAGE_KEY].newValue || []));
+          setReadUrls(new Set((changes[STORAGE_KEY].newValue as string[]) || []));
         }
       };
       chrome.storage.onChanged.addListener(handleChromeStorageChange);
       return () => chrome.storage.onChanged.removeListener(handleChromeStorageChange);
     } else {
-      // Fallback for dev mode — use localStorage
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          setReadUrls(new Set(JSON.parse(saved)));
-        }
-      } catch (err) {
-        console.error('Failed to read from localStorage:', err);
-      }
-
       // Listen for changes from other tabs of the same origin in dev mode
       const handleLocalStorageChange = (e: StorageEvent) => {
         if (e.key === STORAGE_KEY && e.newValue) {
@@ -87,8 +119,9 @@ export function useReadArticles() {
       if (prev.has(cleanUrl)) return prev; // Avoid redundant writes
       const next = new Set(prev);
       next.add(cleanUrl);
-      
-      const arr = Array.from(next);
+
+      // Keep only most recent articles to avoid storage explosion
+      const arr = Array.from(next).slice(-MAX_READ_ARTICLES);
       const storage = getChromeStorage();
       if (storage) {
         storage.set({ [STORAGE_KEY]: arr });

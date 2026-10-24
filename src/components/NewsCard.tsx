@@ -91,7 +91,10 @@ export function NewsCard({ item, isRead, isRecommended, onClick, onDismiss }: Ne
 
       {/* Content */}
       <div className="p-4">
-        <h3 className="text-sm font-semibold text-white/90 leading-snug line-clamp-2 group-hover:text-white transition-colors">
+        <h3 
+          title={item.title}
+          className="text-sm font-semibold text-white/90 leading-snug line-clamp-2 group-hover:text-white transition-colors"
+        >
           {item.title}
         </h3>
         {item.description && (

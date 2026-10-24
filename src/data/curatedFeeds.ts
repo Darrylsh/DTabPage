@@ -33,7 +33,7 @@ export const CURATED_FEEDS: CuratedFeed[] = [
 
   // General News
   { name: 'BBC News', domain: 'bbc.com', category: 'News', feedUrl: 'https://feeds.bbci.co.uk/news/rss.xml' },
-  { name: 'CNN Top Stories', domain: 'cnn.com', category: 'News', feedUrl: 'https://rss.cnn.com/rss/cnn_topstories.rss' },
+  { name: 'NPR News', domain: 'npr.org', category: 'News', feedUrl: 'https://feeds.npr.org/1001/rss.xml' },
   { name: 'NYT Home Page', domain: 'nytimes.com', category: 'News', feedUrl: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml' },
   { name: 'Reuters', domain: 'reuters.com', category: 'News', feedUrl: 'https://www.reutersagency.com/feed/' },
 

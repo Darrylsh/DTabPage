@@ -4,6 +4,7 @@ import { X, Globe, Pencil, Plus, Pin } from 'lucide-react';
 import { useTopSites } from '../hooks/useTopSites';
 import { useHiddenTopSites } from '../hooks/useHiddenTopSites';
 import { useCustomQuickLinks, type CustomLink } from '../hooks/useCustomQuickLinks';
+import { getMainDomain, getMainDomainUrl, getSiteDisplayName } from '../lib/domain';
 
 function getFavicon(url: string) {
   try {
@@ -17,6 +18,10 @@ function getShortName(title: string, url: string) {
   if (title && title.length > 0) {
     return title.length > 12 ? title.slice(0, 11) + '…' : title;
   }
+  const domain = getMainDomain(url);
+  if (domain) {
+    return getSiteDisplayName(domain);
+  }
   try {
     return new URL(url).hostname.replace('www.', '');
   } catch {
@@ -24,21 +29,8 @@ function getShortName(title: string, url: string) {
   }
 }
 
-function normalizeUrl(urlStr: string): string {
-  try {
-    const url = new URL(urlStr);
-    let normalized = url.origin + url.pathname;
-    if (normalized.endsWith('/')) {
-      normalized = normalized.slice(0, -1);
-    }
-    return normalized.toLowerCase();
-  } catch {
-    return urlStr.toLowerCase();
-  }
-}
-
 export function TopSites() {
-  const browserSites = useTopSites(24);
+  const browserSites = useTopSites(36);
   const { hiddenUrls, hideSite } = useHiddenTopSites();
   const { customLinks, addLink, updateLink, removeLink } = useCustomQuickLinks();
   
@@ -49,26 +41,62 @@ export function TopSites() {
   const [formUrl, setFormUrl] = useState('');
 
   const allSites = useMemo(() => {
-    const filteredBrowser = browserSites.filter(site => !hiddenUrls.has(site.url));
-    const customNormalized = new Set(customLinks.map(link => normalizeUrl(link.url)));
-    
-    // Map custom links with custom flag
-    const combined = customLinks.map(link => ({
-      ...link,
-      isCustom: true
-    }));
-    
-    // Add non-duplicate browser links
-    filteredBrowser.forEach(site => {
-      const norm = normalizeUrl(site.url);
-      if (!customNormalized.has(norm)) {
-        combined.push({
-          ...site,
-          isCustom: false
-        });
+    // 1. Collect all domains that exist in custom links
+    const existingDomains = new Set<string>();
+
+    const combined = customLinks.map(link => {
+      const domain = getMainDomain(link.url);
+      if (domain) {
+        existingDomains.add(domain);
       }
+      return {
+        ...link,
+        isCustom: true
+      };
     });
-    
+
+    const isHidden = (url: string, domain: string, mainUrl: string) => {
+      if (
+        hiddenUrls.has(url) ||
+        hiddenUrls.has(mainUrl) ||
+        hiddenUrls.has(mainUrl + '/') ||
+        hiddenUrls.has(domain)
+      ) {
+        return true;
+      }
+      for (const h of hiddenUrls) {
+        if (getMainDomain(h) === domain || getMainDomainUrl(h) === mainUrl) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // 2. Add automatic links only if no link anywhere on that domain already exists
+    browserSites.forEach(site => {
+      const domain = getMainDomain(site.url);
+      if (!domain) return;
+
+      // When added automatically, point strictly to top level domain
+      const mainUrl = getMainDomainUrl(site.url) || site.url;
+
+      if (isHidden(site.url, domain, mainUrl)) {
+        return;
+      }
+
+      // Do not add automatic link if ANY link on this domain already exists (custom or earlier automatic)
+      if (existingDomains.has(domain)) {
+        return;
+      }
+
+      existingDomains.add(domain);
+      combined.push({
+        ...site,
+        url: mainUrl,
+        isCustom: false
+      });
+    });
+
     return combined.slice(0, 24);
   }, [browserSites, hiddenUrls, customLinks]);
 
@@ -91,10 +119,16 @@ export function TopSites() {
     const formattedUrl = formUrl.startsWith('http') ? formUrl : `https://${formUrl}`;
 
     if (editingSite) {
-      // If it was a browser site, we need to "hide" the original and add the custom one
-      const isBrowserSite = browserSites.some(s => s.url === editingSite.url);
-      if (isBrowserSite && editingSite.url !== formattedUrl) {
+      // If it was a browser site, hide the original browser site
+      const isBrowserSite = browserSites.some(
+        s => s.url === editingSite.url || getMainDomain(s.url) === getMainDomain(editingSite.url)
+      );
+      if (isBrowserSite) {
         hideSite(editingSite.url);
+        const mainUrl = getMainDomainUrl(editingSite.url);
+        if (mainUrl && mainUrl !== editingSite.url) {
+          hideSite(mainUrl);
+        }
       }
       
       // Update custom links
@@ -103,7 +137,6 @@ export function TopSites() {
         updateLink(editingSite.url, formTitle, formattedUrl);
       } else {
         addLink(formTitle, formattedUrl);
-        hideSite(editingSite.url);
       }
     } else {
       addLink(formTitle, formattedUrl);
@@ -169,6 +202,10 @@ export function TopSites() {
                     removeLink(site.url);
                   } else {
                     hideSite(site.url);
+                    const mainUrl = getMainDomainUrl(site.url);
+                    if (mainUrl && mainUrl !== site.url) {
+                      hideSite(mainUrl);
+                    }
                   }
                 }}
                 className="p-1 rounded-full bg-black/60 text-white/40 hover:text-white hover:bg-red-500/80 transition-colors"

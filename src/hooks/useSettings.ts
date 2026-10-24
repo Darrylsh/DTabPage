@@ -10,7 +10,7 @@ export interface Settings {
 const DEFAULTS: Settings = {
   searchEngine: 'google',
   feedUrls: [
-    'https://rss.cnn.com/rss/cnn_topstories.rss',
+    'https://feeds.bbci.co.uk/news/rss.xml',
     'https://www.engadget.com/rss.xml',
   ],
   hskLevel: '1',
@@ -23,25 +23,64 @@ function getChromeStorage() {
     : null;
 }
 
+function migrateFeedUrls(feedUrls: string[]): { urls: string[]; migrated: boolean } {
+  let migrated = false;
+  const updatedUrls = feedUrls.map((url) => {
+    if (url && (url.includes('rss.cnn.com') || (url.includes('cnn.com') && url.includes('rss')))) {
+      migrated = true;
+      return 'https://feeds.bbci.co.uk/news/rss.xml';
+    }
+    return url;
+  });
+
+  const uniqueUrls = Array.from(new Set(updatedUrls.filter(Boolean)));
+  if (uniqueUrls.length !== feedUrls.length) {
+    migrated = true;
+  }
+  return { urls: uniqueUrls.length > 0 ? uniqueUrls : DEFAULTS.feedUrls, migrated };
+}
+
+function loadInitialSettings(): { settings: Settings; loaded: boolean } {
+  const storage = getChromeStorage();
+  if (storage) {
+    return { settings: DEFAULTS, loaded: false };
+  }
+  try {
+    const saved = localStorage.getItem('horizon_settings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const { urls, migrated } = migrateFeedUrls(parsed.feedUrls || DEFAULTS.feedUrls);
+      const merged: Settings = { ...DEFAULTS, ...parsed, feedUrls: urls };
+      if (migrated) {
+        localStorage.setItem('horizon_settings', JSON.stringify(merged));
+      }
+      return { settings: merged, loaded: true };
+    }
+  } catch { /* ignore */ }
+  return { settings: DEFAULTS, loaded: true };
+}
+
 export function useSettings() {
-  const [settings, setSettings] = useState<Settings>(DEFAULTS);
-  const [loaded, setLoaded] = useState(false);
+  const [initial] = useState(loadInitialSettings);
+  const [settings, setSettings] = useState<Settings>(initial.settings);
+  const [loaded, setLoaded] = useState(initial.loaded);
 
   useEffect(() => {
     const storage = getChromeStorage();
-    if (storage) {
-      storage.get(Object.keys(DEFAULTS), (items) => {
-        setSettings({ ...DEFAULTS, ...(items as Partial<Settings>) });
-        setLoaded(true);
-      });
-    } else {
-      // Fallback for dev mode — use localStorage
-      try {
-        const saved = localStorage.getItem('horizon_settings');
-        if (saved) setSettings(JSON.parse(saved));
-      } catch { /* ignore */ }
+    if (!storage) return;
+
+    storage.get(Object.keys(DEFAULTS), (items) => {
+      const partial = items as Partial<Settings>;
+      const { urls, migrated } = migrateFeedUrls(partial.feedUrls || DEFAULTS.feedUrls);
+      const merged: Settings = { ...DEFAULTS, ...partial, feedUrls: urls };
+
+      if (migrated) {
+        storage.set({ feedUrls: urls });
+      }
+
+      setSettings(merged);
       setLoaded(true);
-    }
+    });
   }, []);
 
   const updateSettings = useCallback((partial: Partial<Settings>) => {
